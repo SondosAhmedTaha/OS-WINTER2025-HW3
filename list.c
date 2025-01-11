@@ -124,9 +124,9 @@ Request popByIndex(List list ,int index){ // todo changed
     if(index >= getListSize(list) -1) {
         list->tail=temp;
     }
-      //list->tail=temp->previous;
+    //list->tail=temp->previous;
     Request temp_req = it->request;
-      free(it);
+    free(it);
     list->curr_size --;
     return temp_req;
 }

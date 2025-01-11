@@ -5,6 +5,26 @@
 #include "segel.h"
 #include "request.h"
 
+Request createRequest(int connfd){
+    Request new_request=(Request) malloc(sizeof(*new_request));
+    if(!new_request){
+        return NULL;
+    }
+    gettimeofday(&(new_request->arrival_time), NULL);
+    new_request->connfd=connfd;
+    return new_request;
+}
+//todo make sure that everything is ok
+threads_stats createThreadStats(int thread_id){
+    threads_stats new_thread=(threads_stats) malloc(sizeof(*new_thread));
+    new_thread->id=thread_id;
+    new_thread->dynm_req=0;
+    new_thread->total_req=0;
+    new_thread->stat_req=0;
+    return new_thread;
+}
+
+
 // requestError(      fd,    filename,        "404",    "Not found", "OS-HW3 Server could not find this file");
 void requestError(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg, struct timeval arrival, struct timeval dispatch, threads_stats t_stats)
 {
@@ -148,6 +168,13 @@ void requestServeDynamic(int fd, char *filename, char *cgiargs, struct timeval a
      	 Execve(filename, emptylist, environ);
    	}
   	WaitPid(pid, NULL, WUNTRACED);
+
+       /*Summary of the Function
+Generates HTTP response headers with relevant statistics.
+Forks a child process to execute the CGI script or dynamic program.
+The child process runs the CGI script, passing arguments via the QUERY_STRING environment variable, and sends the output to the client.
+The parent process waits for the child to complete using WaitPid with WUNTRACED.
+This function is essential for handling dynamic requests in your web server, enabling it to execute programs and serve their output dynamically.*/
 }
 
 

@@ -8,7 +8,17 @@ typedef struct Threads_stats{
 	int dynm_req;
 	int total_req;
 } * threads_stats;
+typedef struct request{
+    int connfd;
+    struct timeval arrival_time;
+    struct timeval dispatch_interval;
+    struct timeval pickUp_time;
+    //thread statics?
+}*Request;
 
+Request createRequest(int connfd);
+//destroyReq?
+threads_stats createThreadStats(int thread_id);
 // handle a request
 void requestHandle(int fd, struct timeval arrival, struct timeval dispatch, threads_stats t_stats);
 
