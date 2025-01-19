@@ -4,7 +4,25 @@
 
 #include "segel.h"
 #include "request.h"
+#include "list.h"
 
+void check_and_remove_skip(char *filename, int *is_skip) {
+    const char *skip_suffix = ".skip"; // Suffix to check
+    size_t filename_len = strlen(filename);
+    size_t skip_len = strlen(skip_suffix);
+
+    // Check if the filename ends with ".skip"
+    if (filename_len >= skip_len && strcmp(filename + filename_len - skip_len, skip_suffix) == 0) {
+        // Remove the ".skip" suffix by truncating the string
+        filename[filename_len - skip_len] = '\0';
+
+        // Set is_skip to 1
+        *is_skip = 1;
+    } else {
+        // Set is_skip to 0 if no match
+        *is_skip = 0;
+    }
+}
 Request createRequest(int connfd){
     Request new_request=(Request) malloc(sizeof(*new_request));
     if(!new_request){
@@ -232,13 +250,14 @@ int getRequestMetaData(int fd /*, int* est* for future use ignore this*/)
 
 
 // handle a request
-void requestHandle(int fd, struct timeval arrival, struct timeval dispatch, threads_stats t_stats)
+void requestHandle(int fd, struct timeval arrival, struct timeval dispatch, threads_stats t_stats,int* is_skip)
 {
 	int is_static;
 	struct stat sbuf;
 	char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
 	char filename[MAXLINE], cgiargs[MAXLINE];
 	rio_t rio;
+	t_stats->total_req++;
 
 	Rio_readinitb(&rio, fd);
 	Rio_readlineb(&rio, buf, MAXLINE);
@@ -252,7 +271,10 @@ void requestHandle(int fd, struct timeval arrival, struct timeval dispatch, thre
 	requestReadhdrs(&rio);
 
 	is_static = requestParseURI(uri, filename, cgiargs);
-	if (stat(filename, &sbuf) < 0) {
+
+    check_and_remove_skip(filename,is_skip);
+
+    if (stat(filename, &sbuf) < 0) {
 		requestError(fd, filename, "404", "Not found", "OS-HW3 Server could not find this file", arrival, dispatch, t_stats);
 		return;
 	}
