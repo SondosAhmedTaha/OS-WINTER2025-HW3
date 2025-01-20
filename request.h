@@ -7,20 +7,23 @@ typedef struct Threads_stats{
 	int stat_req;
 	int dynm_req;
 	int total_req;
+	
 } * threads_stats;
-typedef struct request{
-    int connfd;
-    struct timeval arrival_time;
-    struct timeval dispatch_interval;
-    struct timeval pickUp_time;
-    //thread statics?
+
+typedef struct Request{
+    int conn_fd;
+    struct timeval arrival_t;
+    struct timeval dispatch_int;
+    struct timeval pick_up_t;
+    
 }*Request;
 
-Request createRequest(int connfd);
-//destroyReq?
-threads_stats createThreadStats(int thread_id);
+void check_and_remove_skip(char *filename, int *is_skip);
+Request create_request(int fd);
+threads_stats create_threads_stats(int thread_id);
+
 // handle a request
-void requestHandle(int fd, struct timeval arrival, struct timeval dispatch, threads_stats t_stats);
+void requestHandle(int fd, struct timeval arrival, struct timeval dispatch, threads_stats t_stats,int* is_skip);
 
 //  Returns True/False if realtime event
 int getRequestMetaData(int fd);
