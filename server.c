@@ -11,310 +11,265 @@
 #define RANDOM 5
 
 
-//int regular_inside;
 int VIP_inside;
-pthread_cond_t regular_allowed ;
-List waiting_requests;
-List currently_handled;
+List wait_requests;
+List curr_handled;
 List vip_requests;
-pthread_cond_t  queue_full,queue_empty_VIP;
-pthread_mutex_t thread_lock;
+pthread_cond_t  queue_full, queue_empty_VIP, regular_allowed;
+pthread_mutex_t lock;
 
 
-// 
-// server.c: A very, very simple web server
-//
-// To run:
-//  ./server <portnum (above 2000)>
-//
-// Repeatedly handles HTTP requests sent to this port number.
-// Most of the work is done within routines written in request.c
-//
-
-// HW3: Parse the new arguments too
-//The C Program nust be invoked by
-//./server [portnum][threads][queue_size][schedlag]
-
-void * workerFunction (void* thread_stats){
-    //struct timeval arrival_time; //todo when to initialzie or delete
-    threads_stats th_stat= (threads_stats) thread_stats;//todo debug
+void* worker_function (void* thread_stats){
+    
+    threads_stats th_stat = (threads_stats) thread_stats;
     while(true){
-        pthread_mutex_lock(&thread_lock);
+        pthread_mutex_lock(&lock);
 
-        while(VIP_inside > 0 || getListSize(vip_requests) >0 ||
-        getListSize(waiting_requests)==0){
-            pthread_cond_wait(&regular_allowed, &thread_lock);
+        while(VIP_inside > 0 || get_list_size(vip_requests) >0 ||
+				get_list_size(wait_requests)==0){
+            pthread_cond_wait(&regular_allowed, &lock);
         }
 
-        Request curr_request= pop(waiting_requests);
-        pushBack(currently_handled,  curr_request);
+        Request curr_request = pop(wait_requests);
+        push_back(curr_handled, curr_request);
 
-        //regular_inside++;
         //if we get here atleast 1 request waiting.
-        pthread_mutex_unlock(&thread_lock);
+        pthread_mutex_unlock(&lock);
         //the previous code is exactly like the tutorial!
-        int is_skip =0; //bool
-        gettimeofday(&(curr_request->pickUp_time),NULL);
-        timersub(&(curr_request->pickUp_time), &(curr_request->arrival_time), &(curr_request->dispatch_interval));
-        requestHandle(curr_request->connfd, curr_request->arrival_time, curr_request->dispatch_interval, th_stat,&is_skip);
-        Close(curr_request->connfd);
+        int is_skip = 0;
+        gettimeofday(&(curr_request->pick_up_t),NULL);
+        timersub(&(curr_request->pick_up_t), &(curr_request->arrival_t), &(curr_request->dispatch_int));
+        requestHandle(curr_request->conn_fd, curr_request->arrival_t, curr_request->dispatch_int, th_stat, &is_skip);
+        Close(curr_request->conn_fd);
 
         //if is_skip =1 , then we have a skip request
         if(is_skip == 1){
-            //REVIEW  THIS AFTERWARDS
-            pthread_mutex_lock(&thread_lock);
-            int thread_to_pop= findThreadBySfd(currently_handled,curr_request->connfd);
-            popByIndex(currently_handled, thread_to_pop);
-            int index = getListSize(waiting_requests);
-            curr_request = popByIndex(waiting_requests,index);
-            pushBack(currently_handled,  curr_request);
-            pthread_mutex_unlock(&thread_lock);
-            is_skip =0;
-            gettimeofday(&(curr_request->pickUp_time),NULL);
-            timersub(&(curr_request->pickUp_time), &(curr_request->arrival_time), &(curr_request->dispatch_interval));
-            requestHandle(curr_request->connfd, curr_request->arrival_time, curr_request->dispatch_interval, th_stat,&is_skip);
-            Close(curr_request->connfd);
+            //REVIEW THIS AFTERWARDS
+            pthread_mutex_lock(&lock);
+            int thread_to_pop = find_by_sfd(curr_handled, curr_request->conn_fd);
+            pop_by_index(curr_handled, thread_to_pop);
+            int index = get_list_size(wait_requests);
+            curr_request = pop_by_index(wait_requests, index);
+            push_back(curr_handled, curr_request);
+            pthread_mutex_unlock(&lock);
+            is_skip = 0;
+            gettimeofday(&(curr_request->pick_up_t),NULL);
+            timersub(&(curr_request->pick_up_t), &(curr_request->arrival_t), &(curr_request->dispatch_int));
+            requestHandle(curr_request->conn_fd, curr_request->arrival_t, curr_request->dispatch_int, th_stat, &is_skip);
+            Close(curr_request->conn_fd);
         }
 
-        pthread_mutex_lock(&thread_lock);
-        int thread_to_pop= findThreadBySfd(currently_handled,curr_request->connfd);
-        popByIndex(currently_handled, thread_to_pop);
-        pthread_cond_signal(&queue_full);//if the queue was full
-        // it will release one of the waiting threads.
-        //todo check this line
-        pthread_mutex_unlock(&thread_lock);
+        pthread_mutex_lock(&lock);
+        int thread_to_pop = find_by_sfd(curr_handled, curr_request->conn_fd);
+        pop_by_index(curr_handled, thread_to_pop);
+        pthread_cond_signal(&queue_full);
+        pthread_mutex_unlock(&lock);
     }
-    //return NULL;
 }
-void * VIPworkerFunction (void* thread_stats){
-    //struct timeval arrival_time; //todo when to initialzie or delete
-    threads_stats th_stat= (threads_stats) thread_stats;//todo debug
+
+void * VIP_worker_function (void* thread_stats){
+    
+    threads_stats th_stat= (threads_stats) thread_stats;
     while(true){
-        pthread_mutex_lock(&thread_lock);
-        while(getListSize(vip_requests)==0){
-            pthread_cond_wait(&queue_empty_VIP, &thread_lock);
-            //waiting for "Event" to get a waiting request...
+        pthread_mutex_lock(&lock);
+        while(get_list_size(vip_requests)==0){
+            pthread_cond_wait(&queue_empty_VIP, &lock);
         }
-        Request curr_request= pop(vip_requests);
+        Request curr_request = pop(vip_requests);
         VIP_inside++;
         //if we get here atleast 1 request waiting.
-        pthread_mutex_unlock(&thread_lock);
+        pthread_mutex_unlock(&lock);
         //the previous code is exactly like the tutorial!
-        gettimeofday(&(curr_request->pickUp_time),NULL);
-        timersub(&(curr_request->pickUp_time), &(curr_request->arrival_time), &(curr_request->dispatch_interval));
+        gettimeofday(&(curr_request->pick_up_t),NULL);
+        timersub(&(curr_request->pick_up_t), &(curr_request->arrival_t), &(curr_request->dispatch_int));
         int num=0;
-        requestHandle(curr_request->connfd, curr_request->arrival_time, curr_request->dispatch_interval, th_stat,&num);
+        requestHandle(curr_request->conn_fd, curr_request->arrival_t, curr_request->dispatch_int, th_stat, &num);
 
-        //void requestHandle(int fd, struct timeval arrival, struct timeval dispatch, threads_stats t_stats)
-        Close(curr_request->connfd);
-        pthread_mutex_lock(&thread_lock);
+        Close(curr_request->conn_fd);
+        pthread_mutex_lock(&lock);
         VIP_inside--;
-        // THIS IS FOR REGULAR pthread_cond_signal(&queue_full);//if the queue was full
-       //DO WE NEED QUEUE FULL FOR VIP??
         pthread_cond_signal(&queue_full);
         // it will release one of the waiting threads.
-        //todo check this line
-        pthread_mutex_unlock(&thread_lock);
+        pthread_mutex_unlock(&lock);
     }
-    //return NULL;
 }
 
-void getargs(int *port, int* threads, int* queue_size,char** shedlag,int* max_size, int argc, char *argv[])
-{
-    if (argc != 5 ) {
-        //fprintf(stderr, "Usage: %s <port>\n", argv[0]);
-        exit(1);
-    }
+//fill the input in the params
+void getargs(int *port, int* threads_num, int* queue_size,char** algo,int* max_size, int argc, char *argv[]) {
+	
+    if (argc != 5 ) { exit(1); }
     *port = atoi(argv[1]);
-    if ((*port) < 1023 || (*port) > 65535){
+    *threads_num= atoi(argv[2]);
+    *queue_size= atoi(argv[3]);
+    if ((*port)<1023 || (*port)>65535 || (*threads_num)==0 || (*queue_size)==0){
 		exit(1);
 	}
-    *threads= atoi(argv[2]);
-    *queue_size= atoi(argv[3]);
-    *shedlag=(char*) malloc(sizeof (char) *strlen(argv[4])+1);
-    //if malloc failed
-    strcpy(*shedlag, argv[4]);
-
+    *algo = (char*) malloc(sizeof(char) * strlen(argv[4]) + 1);
+    strcpy(*algo, argv[4]);
 }
 
-
-int getSchedAlgo(char* shedlag){
-    if(strcmp(shedlag, "block")==0){
-        return BLOCK;
-    }
-    else if(strcmp(shedlag, "dt")==0){
-        return DROP_TAIL;
-    }
-    else if(strcmp(shedlag, "dh")==0){
-        return DROP_HEAD;
-    }
-    else if(strcmp(shedlag, "bf")==0){
-        return BLOCK_FLUSH;
-    }
-
-    else if(strcmp(shedlag, "random")==0){
-        return RANDOM;
-    }
+int translate_algo(char* algo){
+	
+    if(strcmp(algo, "block") == 0) { return BLOCK; }
+    else if(strcmp(algo, "dt") == 0) { return DROP_TAIL; }
+    else if(strcmp(algo, "dh") == 0) { return DROP_HEAD; }
+    else if(strcmp(algo, "bf") == 0) { return BLOCK_FLUSH; }
+    else if(strcmp(algo, "random") == 0) { return RANDOM; }
     return -1;
 }
-void Block(int queue_size_limit, Request request){
-    while (getListSize(waiting_requests)+ getListSize(currently_handled)+ getListSize(vip_requests)>=queue_size_limit){
-        pthread_cond_wait(&queue_full,&thread_lock);
-    }
-    pushBack(waiting_requests, request);
-    pthread_cond_signal(&regular_allowed);
 
-}
-void DropTail(int connfd){
-    Close(connfd);
-}
-void DropHead(int connfd, Request current_request){
-    if(getListSize(waiting_requests)!=0){
-        Request poped_req= pop(waiting_requests);
-        Close(poped_req->connfd);
+//Algorithms------------------------------------------------------------
+
+void block(int max_size, Request request){
+	
+    while (get_list_size(wait_requests) + get_list_size(curr_handled)
+			+ get_list_size(vip_requests) >= max_size){
+        pthread_cond_wait(&queue_full, &lock);
     }
-        //pushBack(waiting_requests,poped_req);
-        pushBack(waiting_requests, current_request);
-        pthread_cond_signal(&regular_allowed);//waiting to be a "place" to handle
-        Close(connfd);
+    push_back(wait_requests, request);
+    pthread_cond_signal(&regular_allowed);
+}
+
+void drop_tail(int conn_fd){
+    Close(conn_fd);
+}
+
+void drop_head(Request curr_request){
+    if(get_list_size(wait_requests) != 0){
+        Request head = pop(wait_requests);
+        Close(head->conn_fd);
+    }
+        push_back(wait_requests, curr_request);
+        pthread_cond_signal(&regular_allowed);
         return;
 }
 
-void BlockFlush(Request request){
-    while (getListSize(waiting_requests)+ getListSize(currently_handled)+ getListSize(vip_requests)>0){
-        pthread_cond_wait(&queue_full,&thread_lock);
+void block_flush(Request request){
+	
+    while (get_list_size(wait_requests) + get_list_size(curr_handled)
+			+ get_list_size(vip_requests) > 0){
+        pthread_cond_wait(&queue_full, &lock);
     }
-    Close(request->connfd); // changed day7
+    Close(request->conn_fd);
     free(request);
-
 }
 
-
-void drop_random(List list, int connfd, Request req, int queue_size_limit){
-    int number_tobe_removed= (list->curr_size+1)/2;
-    for (int i=0; i<number_tobe_removed; i++){
-        if(getListSize(list)<=0){
-            break;
-        }
-        int index= rand() % (list->curr_size);
-        Request to_dump=popByIndex(list, index);
-        Close(to_dump->connfd);
-        free(to_dump);
+void drop_random(List list, int connfd, Request request, int max_size){
+	
+    int num_to_delete = (list->curr_size+1)/2;
+    for (int i = 0; i < num_to_delete; i++){
+        if(get_list_size(list) <= 0) { break; }
+        int index = rand() % (list->curr_size);
+        Request to_delete = pop_by_index(list, index);
+        Close(to_delete->conn_fd);
+        free(to_delete);
     }
-    while (getListSize(waiting_requests)+ getListSize(currently_handled)+
-    getListSize(vip_requests)>=queue_size_limit){
-        pthread_cond_wait(&queue_full,&thread_lock);
+    while (get_list_size(wait_requests)+ get_list_size(curr_handled)+
+			get_list_size(vip_requests) >= max_size){
+        pthread_cond_wait(&queue_full, &lock);
     }
-    pushBack(waiting_requests, req);
+    push_back(wait_requests, request);
     pthread_cond_signal(&regular_allowed);
-    //pushing back??
 }
-int main(int argc, char *argv[])
-{
 
-    int listenfd, connfd, port, clientlen, threads, queue_size, max_size;
+//end of algorithms-----------------------------------------------------
+
+int main(int argc, char *argv[]) {
+
+    int port, clientlen, threads_num, queue_size, max_size, listenfd, connfd;
     struct sockaddr_in clientaddr;
-    char* shedlag;
+    char* algo;
     
-    //regular_inside=0;
-    pthread_mutex_init(&thread_lock, NULL);//mutex init
+    pthread_mutex_init(&lock, NULL);
     pthread_cond_init(&queue_empty_VIP,NULL);
     pthread_cond_init(&queue_full, NULL);
     pthread_cond_init(&regular_allowed, NULL);
     
-    max_size=0;
+    max_size = 0;
     VIP_inside = 0;
 
-    getargs(&port, &threads, &queue_size , &shedlag,&max_size,argc, argv);
-    int shedalgo= getSchedAlgo(shedlag);
-    pthread_t* worker_threads=(pthread_t*)malloc(sizeof(pthread_t)*(threads+1)); // allocating the array of worker threads
-    threads_stats * thread_stat_array= malloc(sizeof (threads_stats)*(threads+1));
-    //create 3 lists.
-    int list_size=queue_size;
-    waiting_requests= listCreate(list_size);// todo make sure of arg
-    currently_handled= listCreate(list_size);
-    vip_requests = listCreate(list_size);
+	//setting the input
+    getargs(&port, &threads_num, &queue_size , &algo, &max_size, argc, argv);
+    int algorithm = translate_algo(algo);
+    if (algorithm == -1) { exit(1); }
     
+    //create 3 lists
+    int size_list = queue_size;
+    wait_requests = create_list(size_list);
+    curr_handled = create_list(size_list);
+    vip_requests = create_list(size_list);
     
-    //
-    // HW3: Create some threads...
-    //
+    //creating arrays for the threads and the stats
+    pthread_t* worker_threads = (pthread_t*) malloc(sizeof(pthread_t)*(threads_num+1));
+    threads_stats* thread_stats_array = malloc(sizeof(threads_stats)*(threads_num+1));
 
-    for (int i = 0; i < threads; i++) {
-        //int* index= malloc(sizeof (int));
-        //*index=i;
-        threads_stats t_stat=createThreadStats(i);
-        thread_stat_array[i]=t_stat;
-        pthread_create(&worker_threads[i], NULL, workerFunction, (void*)(thread_stat_array[i]));//todo syntax
-        //todo check the last parameter's syntax.
+	//create the threads
+    for (int i = 0; i < threads_num; i++) {
+		
+        threads_stats thr_stat = create_threads_stats(i);
+        thread_stats_array[i] = thr_stat;
+        pthread_create(&worker_threads[i], NULL, worker_function, (void*)(thread_stats_array[i]));
     }
-    /////////////////////////////////I WANT TO CREATE THE VIP THREAD/////////////////////////
-    threads_stats t_stat=createThreadStats(threads);
-    thread_stat_array[threads]=t_stat;
-    pthread_create(&worker_threads[threads], NULL, VIPworkerFunction, (void*)(thread_stat_array[threads]));
-    ////////////////////////////////////////////////////////////////////////////////////////
     
+    threads_stats thr_stat = create_threads_stats(threads_num);
+    thread_stats_array[threads_num] = thr_stat;
+    pthread_create(&worker_threads[threads_num], NULL, VIP_worker_function, (void*)(thread_stats_array[threads_num]));
     
-    ///*******************************/*/
+    //the main event
     listenfd = Open_listenfd(port);
     while (1) {
+		
         clientlen = sizeof(clientaddr);
         connfd = Accept(listenfd, (SA *)&clientaddr, (socklen_t *) &clientlen);
-        Request current_request= createRequest(connfd);
-        pthread_mutex_lock(&thread_lock);
-        if(getListSize(waiting_requests)+ getListSize(currently_handled)+ getListSize(vip_requests)<queue_size){
+        Request current_request = create_request(connfd);
+        pthread_mutex_lock(&lock);
+        
+        if(get_list_size(wait_requests)+ get_list_size(curr_handled)
+			+ get_list_size(vip_requests) < queue_size){
 
-            //SHOULD CHECK VIP REQUESTS
             if(getRequestMetaData(connfd)){
-                pushBack(vip_requests, current_request);
+                push_back(vip_requests, current_request);
                 pthread_cond_signal(&queue_empty_VIP);
             }
             else{
-                //there are enough buffers.
-                pushBack(waiting_requests, current_request);
-                pthread_cond_signal(&regular_allowed);//waiting to be a "place" to handle
-                // the request.
+                push_back(wait_requests, current_request);
+                pthread_cond_signal(&regular_allowed);
             }
-
-            pthread_mutex_unlock(&thread_lock);
+            pthread_mutex_unlock(&lock);
             continue;
-
         }
 
         //IF THE SERVER IS FULL OF VIP REQUESTS, BLOCKING SHOULD BE APPLIED
-            //todo handle cases..
-        else{if(getRequestMetaData(connfd)){
-                pushBack(vip_requests, current_request);
+        else {
+			
+			if(getRequestMetaData(connfd)){
+                push_back(vip_requests, current_request);
                 pthread_cond_signal(&queue_empty_VIP);
             }
             
-            //while(getListSize(vip_requests)>queue_size){
-            //                              pthread_cond_wait(&queue_full,&thread_lock);}
-            if(getListSize(vip_requests)>=queue_size){
-                while(getListSize(vip_requests)>queue_size){
-                    pthread_cond_wait(&queue_full,&thread_lock);}
+            if(get_list_size(vip_requests) >= queue_size){
+                while(get_list_size(vip_requests) > queue_size){
+                    pthread_cond_wait(&queue_full, &lock);
+                }
             }
-            //part 2 policies
-            else if(shedalgo==BLOCK){
-                Block(queue_size, current_request);
-            }
-            else if(shedalgo==DROP_TAIL){
-                DropTail(connfd);
+            
+            else if(algorithm == BLOCK) {
+				block(queue_size, current_request);
+			}
+            else if(algorithm == DROP_TAIL) {
+                drop_tail(connfd);
                 free(current_request);
             }
-            else if(shedalgo==DROP_HEAD){
-                DropHead(connfd, current_request);
-                //
-
+            else if(algorithm == DROP_HEAD) {
+                drop_head(current_request);
             }
-            else if(shedalgo==BLOCK_FLUSH){
-                BlockFlush(current_request);
+            else if(algorithm == BLOCK_FLUSH) {
+                block_flush(current_request);
             }
-            else if(shedalgo==RANDOM){
-				
-                drop_random(waiting_requests, connfd, current_request, queue_size);
+            else if(algorithm == RANDOM) {
+                drop_random(wait_requests, connfd, current_request, queue_size);
             }
-            pthread_mutex_unlock(&thread_lock);
+            pthread_mutex_unlock(&lock);
         }
     }
 }
