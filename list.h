@@ -1,18 +1,15 @@
-//
-// Created by student on 6/9/23.
-//
+#ifndef LIST_H
+#define LIST_H
 
-#ifndef WEBSERVER_FILES_LIST_H
-#define WEBSERVER_FILES_LIST_H
-
-#endif //WEBSERVER_FILES_LIST_H
+#endif
 #include <sys/time.h>
 #include "request.h"
-//todo add edit
-typedef struct Node_t{
+
+typedef struct Node{
     Request request;
-    struct Node_t* previous;
-    struct Node_t* next;
+    struct Node* prev;
+    struct Node* next;
+    
 } *Node;
 
 typedef struct List_t{
@@ -20,15 +17,14 @@ typedef struct List_t{
     Node head;
     int curr_size;
     int max_size;
+    
 } *List;
 
-//push with Request instead of ...
-List listCreate(int max_size);
-void listDestroy(List list);
-int getListSize(List list);
-//adding to the tail
-//todo add edit
-void pushBack(List list, Request request);
+
+List create_list(int max_size);
+void destroy_list(List list);
+int get_list_size(List list);
+void push_back(List list, Request request);
 Request pop(List list);
-Request popByIndex(List list ,int index);
-int findThreadBySfd(List list, int sfd);
+Request pop_by_index(List list ,int index);
+int find_by_sfd(List list, int sfd);
