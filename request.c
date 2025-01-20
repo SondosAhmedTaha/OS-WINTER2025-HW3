@@ -6,6 +6,8 @@
 #include "request.h"
 #include "list.h"
 
+//new functions---------------------------------------------------------
+
 void check_and_remove_skip(char *filename, int *is_skip) {
     const char *skip_suffix = ".skip"; // Suffix to check
     size_t filename_len = strlen(filename);
@@ -23,25 +25,26 @@ void check_and_remove_skip(char *filename, int *is_skip) {
         *is_skip = 0;
     }
 }
-Request createRequest(int connfd){
-    Request new_request=(Request) malloc(sizeof(*new_request));
-    if(!new_request){
-        return NULL;
-    }
-    gettimeofday(&(new_request->arrival_time), NULL);
-    new_request->connfd=connfd;
+
+
+Request create_request(int fd){
+    Request new_request = (Request) malloc(sizeof(*new_request));
+    if(!new_request) { return NULL; }
+    gettimeofday(&(new_request->arrival_t), NULL);
+    new_request->conn_fd = fd;
     return new_request;
 }
+
 //todo make sure that everything is ok
-threads_stats createThreadStats(int thread_id){
-    threads_stats new_thread=(threads_stats) malloc(sizeof(*new_thread));
-    new_thread->id=thread_id;
-    new_thread->dynm_req=0;
-    new_thread->total_req=0;
-    new_thread->stat_req=0;
+threads_stats create_threads_stats(int thread_id){
+    threads_stats new_thread = (threads_stats) malloc(sizeof(*new_thread));
+    new_thread->id = thread_id;
+    new_thread->dynm_req = 0;
+    new_thread->total_req = 0;
+    new_thread->stat_req = 0;
     return new_thread;
 }
-
+//----------------------------------------------------------------------
 
 // requestError(      fd,    filename,        "404",    "Not found", "OS-HW3 Server could not find this file");
 void requestError(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg, struct timeval arrival, struct timeval dispatch, threads_stats t_stats)
