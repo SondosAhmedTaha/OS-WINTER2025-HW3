@@ -6,7 +6,7 @@ OBJS = server.o request.o segel.o client.o list.o
 TARGET = server
 
 CC = gcc
-CFLAGS = -g -Wall
+CFLAGS = -g -Wall -pthread
 
 LIBS = -lpthread 
 
