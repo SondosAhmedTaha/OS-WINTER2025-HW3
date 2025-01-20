@@ -1,94 +1,58 @@
-//
-// Created by student on 6/9/23.
-//
 #include "list.h"
 #include <stdlib.h>
-//todo add more functions and maybe fields in node...
-static Node nodeCreate(Request request)
+
+static Node create_node(Request request)
 {
-    Node new_node= (Node)malloc(sizeof(*new_node));
-    if(new_node==NULL){
-        return NULL;
-    }
-    new_node->request=request;
-    new_node->next=NULL;
-    //new_node->previous=??; //should be the last previous
+    Node new_node = (Node)malloc(sizeof(*new_node));
+    if(new_node == NULL) { return NULL; }
+    new_node->request = request;
+    new_node->next = NULL;
     return new_node;
 }
 
-/*static void nodeDestroy(Node node){
-    free(node);
-}*/
-
-List listCreate(int max_size){
-    List list=(List) malloc(sizeof(*list));
-    if(list==NULL){
-        return NULL;
-    }
-    list->curr_size=0;
-    list->max_size=max_size;
-    list->head=NULL;
-    list->tail=NULL;
+List create_list(int max_size){
+    List list = (List) malloc(sizeof(*list));
+    if(list == NULL) { return NULL; }
+    list->head = NULL;
+    list->tail = NULL;
+    list->curr_size = 0;
+    list->max_size = max_size;
     return list;
 }
-void listDestroy(List list){
-    if(list==NULL){
-        return;
-    }
+
+void destroy_list(List list){
+    if(list == NULL) { return; }
     free(list);
 }
 
-int getListSize(List list){
-    if(list==NULL)
-    {
-        return -1;
-    }
+int get_list_size(List list){
+    if(list == NULL) { return -1; }
     return list->curr_size;
 }
 
-/* int getListMaxSize(List list){
-    if(list==NULL)
-    {
-        return -1;
-    }
-    return list->max_size;
-}
-*/
-
-void pushBack(List list, Request request){
-    if(list==NULL)
-    {
-        return;
-    }
-    if(getListSize(list)==list->max_size){
-        return;
-    }
-    Node new_node= nodeCreate(request);
-    if(getListSize(list)==0){
-        list->head=new_node;
-        list->tail=new_node;
-        //new_node->next=NULL;
-        //new_node->previous=NULL;
+void push_back(List list, Request request){
+    if(list == NULL) { return; }
+    if(get_list_size(list) == list->max_size) { return; }
+    Node new_node = create_node(request);
+    if(get_list_size(list) == 0){
+        list->head = new_node;
+        list->tail = new_node;
     }
     else{
-        list->tail->next=new_node;
-        new_node->previous=list->tail;
-        list->tail=new_node;
+        list->tail->next = new_node;
+        new_node->prev = list->tail;
+        list->tail = new_node;
     }
     list->curr_size++;
     return;
 }
 
 Request pop(List list){
-    if(list==NULL){
-        return NULL;
-    }
-    if(getListSize(list)==0){
-        return NULL;
-    }
-    Node temp=list->head->next;
-    Request request=list->head->request;
-    if(getListSize(list)==1){
+    if(list == NULL) { return NULL; }
+    if(get_list_size(list) == 0) { return NULL; }
+    Node temp = list->head->next;
+    Request request = list->head->request;
+    if(get_list_size(list) == 1){
         free(list->head);
         list->head=NULL;
         list->tail=NULL;
@@ -96,54 +60,46 @@ Request pop(List list){
     else{
         free(list->head);
         list->head=temp;
-        temp->previous=NULL;
+        temp->prev=NULL;
     }
     list->curr_size--;
     return request;
 }
 
-
-Request popByIndex(List list ,int index){ // todo changed
-    if (list==NULL || index<0 || index>= getListSize(list) || getListSize(list)==0){
+Request pop_by_index(List list ,int index){
+    if (list == NULL || index < 0 || index >= get_list_size(list)
+		|| get_list_size(list) == 0){
         return NULL ;
     }
-    Node it=list->head;
-    for(int i=0; i<index;i++)
-    {
-        it=it->next;
-    }
-    //int sfd=it->request->connfd; //todo check
-    Node temp= it->previous;
+    Node node = list->head;
+    for(int i = 0; i < index; i++) { node = node->next; }
+    
+    Node temp = node->prev;
     if(!temp || index <= 0){
         return pop(list);
     }
-    temp->next = it->next;
+    temp->next = node->next;
     if(temp->next){
-        temp->next->previous=temp;
+        temp->next->prev=temp;
     }
-    if(index >= getListSize(list) -1) {
+    if(index >= get_list_size(list) -1) {
         list->tail=temp;
     }
-    //list->tail=temp->previous;
-    Request temp_req = it->request;
-    free(it);
+    Request temp_req = node->request;
+    free(node);
     list->curr_size --;
     return temp_req;
 }
 
-int findThreadBySfd(List list, int sfd){
-    if(list==NULL){
-        return -1;
-    }
-    if(getListSize(list)==0){
-        return -1;
-    }
-    Node it=list->head;
-    for(int i=0; i< getListSize(list); i++){
-        if(it->request->connfd==sfd){ //todo check
+int find_by_sfd(List list, int sfd){
+    if(list == NULL) { return -1; }
+    if(get_list_size(list) == 0) { return -1; }
+    Node node = list->head;
+    for(int i = 0; i < get_list_size(list); i++){
+        if(node->request->conn_fd == sfd){
             return i;
         }
-        it=it->next;
+        node=node->next;
     }
     return -1;
 }
